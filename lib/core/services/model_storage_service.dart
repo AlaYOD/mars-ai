@@ -1,16 +1,11 @@
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-
 class ModelStorageService {
-  static const String _modelFileName = 'gemma-4-E2B-it.litert.lm';
+  static const String _modelFileName = 'gemma-4-E2B-it.litertlm';
 
   Future<String> get modelDirectory async {
-    final appDir = await getApplicationSupportDirectory();
-    final modelsDir = Directory('${appDir.path}/models');
-    if (!modelsDir.existsSync()) {
-      await modelsDir.create(recursive: true);
-    }
-    return modelsDir.path;
+    final appDir = await getApplicationDocumentsDirectory();
+    return appDir.path;
   }
 
   Future<String> get modelFilePath async {

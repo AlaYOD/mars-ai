@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/providers/download_provider.dart';
 import '../../core/providers/inference_provider.dart';
-import '../../core/services/inference_service.dart';
-import '../../core/services/model_download_service.dart';
-
-// TODO: Replace with your actual Hugging Face / GCS model URL
-const _modelUrl =
-    'https://huggingface.co/google/gemma-4-E2B-it-litert/resolve/main/gemma-4-E2B-it.litert.lm';
+import '../../core/services/model_manager.dart';
 
 class DownloadScreen extends ConsumerStatefulWidget {
   const DownloadScreen({super.key});
@@ -16,39 +10,49 @@ class DownloadScreen extends ConsumerStatefulWidget {
   ConsumerState<DownloadScreen> createState() => _DownloadScreenState();
 }
 
+enum ScreenStatus { idle, downloading, completed, error }
+
 class _DownloadScreenState extends ConsumerState<DownloadScreen> {
-  bool _downloadStarted = false;
+  final ModelManager _modelManager = ModelManager();
+  
+  ScreenStatus _status = ScreenStatus.idle;
+  double _progress = 0.0;
+  String? _errorMessage;
 
-  void _startDownload() {
-    if (_downloadStarted) return;
-    setState(() => _downloadStarted = true);
+  void _startDownload() async {
+    if (_status == ScreenStatus.downloading) return;
+    
+    setState(() {
+      _status = ScreenStatus.downloading;
+      _errorMessage = null;
+      _progress = 0.0;
+    });
 
-    final service = ref.read(modelDownloadServiceProvider);
-    final stream = service.download(_modelUrl);
-
-    stream.listen(
-      (state) {
-        ref.read(downloadStateProvider.notifier).state = state;
-
-        if (state.status == DownloadStatus.completed) {
-          // Model is on disk — now load it into the inference engine.
-          ref.read(modelLoaderProvider.notifier).loadModel();
-        }
-      },
-      onError: (_) {
-        setState(() => _downloadStarted = false);
-      },
-    );
-  }
-
-  void _pauseDownload() {
-    ref.read(modelDownloadServiceProvider).pause();
-    setState(() => _downloadStarted = false);
+    try {
+      await _modelManager.downloadModel((progress) {
+        setState(() {
+          _progress = progress;
+        });
+      });
+      
+      setState(() {
+        _status = ScreenStatus.completed;
+        _progress = 1.0;
+      });
+      
+      // Model is on disk — now load it into the inference engine.
+      ref.read(modelLoaderProvider.notifier).loadModel();
+      
+    } catch (e) {
+      setState(() {
+        _status = ScreenStatus.error;
+        _errorMessage = e.toString();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final downloadState = ref.watch(downloadStateProvider);
     final modelLoader = ref.watch(modelLoaderProvider);
 
     // Once the engine is ready, hand off to the main app.
@@ -69,20 +73,14 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Spacer(),
-              _Header(status: downloadState.status, modelLoader: modelLoader),
+              _Header(status: _status, modelLoader: modelLoader),
               const SizedBox(height: 48),
-              _ProgressSection(state: downloadState),
+              _ProgressSection(status: _status, progress: _progress, errorMessage: _errorMessage),
               const SizedBox(height: 32),
               _ActionButton(
-                downloadState: downloadState,
+                status: _status,
                 modelLoader: modelLoader,
-                downloadStarted: _downloadStarted,
                 onStart: _startDownload,
-                onPause: _pauseDownload,
-                onRetry: () {
-                  setState(() => _downloadStarted = false);
-                  _startDownload();
-                },
               ),
               const Spacer(flex: 2),
             ],
@@ -94,7 +92,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
 }
 
 class _Header extends StatelessWidget {
-  final DownloadStatus status;
+  final ScreenStatus status;
   final AsyncValue<InferenceStatus> modelLoader;
 
   const _Header({required this.status, required this.modelLoader});
@@ -104,23 +102,21 @@ class _Header extends StatelessWidget {
     final String title;
     final String subtitle;
 
-    if (modelLoader.isLoading ||
-        modelLoader.valueOrNull == InferenceStatus.loading) {
+    if (modelLoader.isLoading || modelLoader.valueOrNull == InferenceStatus.loading) {
       title = 'Preparing AI Engine';
       subtitle = 'Loading model into memory…';
-    } else if (status == DownloadStatus.completed) {
+    } else if (status == ScreenStatus.completed) {
       title = 'Download Complete';
       subtitle = 'Initializing the AI engine…';
-    } else if (status == DownloadStatus.downloading) {
+    } else if (status == ScreenStatus.downloading) {
       title = 'Downloading AI Model';
       subtitle = 'Please connect to Wi-Fi. Downloading your smart assistant to work offline.';
-    } else if (status == DownloadStatus.error) {
+    } else if (status == ScreenStatus.error) {
       title = 'Download Failed';
       subtitle = 'Check your connection and try again.';
     } else {
       title = 'One-time Setup';
-      subtitle =
-          'Mars needs to download the AI model (~2 GB).\nThis happens once. The model runs fully offline after this.';
+      subtitle = 'Mars needs to download the AI model (~2 GB).\nThis happens once. The model runs fully offline after this.';
     }
 
     return Column(
@@ -150,24 +146,21 @@ class _Header extends StatelessWidget {
 }
 
 class _ProgressSection extends StatelessWidget {
-  final DownloadState state;
+  final ScreenStatus status;
+  final double progress;
+  final String? errorMessage;
 
-  const _ProgressSection({required this.state});
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+  const _ProgressSection({
+    required this.status,
+    required this.progress,
+    this.errorMessage,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isActive = state.status == DownloadStatus.downloading ||
-        state.status == DownloadStatus.completed;
+    final isActive = status == ScreenStatus.downloading || status == ScreenStatus.completed;
 
-    if (!isActive && state.status == DownloadStatus.idle) {
+    if (!isActive && status == ScreenStatus.idle) {
       return const SizedBox.shrink();
     }
 
@@ -177,11 +170,11 @@ class _ProgressSection extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: state.progress > 0 ? state.progress : null,
+            value: progress > 0 ? progress : null,
             minHeight: 6,
             backgroundColor: Colors.white12,
             valueColor: AlwaysStoppedAnimation<Color>(
-              state.status == DownloadStatus.error
+              status == ScreenStatus.error
                   ? Colors.red.shade400
                   : Colors.deepPurple.shade300,
             ),
@@ -189,17 +182,11 @@ class _ProgressSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text(
-              state.totalBytes > 0
-                  ? '${_formatBytes(state.downloadedBytes)} / ${_formatBytes(state.totalBytes)}'
-                  : _formatBytes(state.downloadedBytes),
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
-            ),
-            if (state.progress > 0)
+            if (progress > 0)
               Text(
-                '${(state.progress * 100).toStringAsFixed(1)}%',
+                '${(progress * 100).toStringAsFixed(1)}%',
                 style: TextStyle(
                   color: Colors.deepPurple.shade300,
                   fontSize: 13,
@@ -208,10 +195,10 @@ class _ProgressSection extends StatelessWidget {
               ),
           ],
         ),
-        if (state.errorMessage != null) ...[
+        if (errorMessage != null) ...[
           const SizedBox(height: 8),
           Text(
-            state.errorMessage!,
+            errorMessage!,
             style: TextStyle(color: Colors.red.shade400, fontSize: 13),
           ),
         ],
@@ -221,41 +208,30 @@ class _ProgressSection extends StatelessWidget {
 }
 
 class _ActionButton extends StatelessWidget {
-  final DownloadState downloadState;
+  final ScreenStatus status;
   final AsyncValue<InferenceStatus> modelLoader;
-  final bool downloadStarted;
   final VoidCallback onStart;
-  final VoidCallback onPause;
-  final VoidCallback onRetry;
 
   const _ActionButton({
-    required this.downloadState,
+    required this.status,
     required this.modelLoader,
-    required this.downloadStarted,
     required this.onStart,
-    required this.onPause,
-    required this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = modelLoader.isLoading ||
-        modelLoader.valueOrNull == InferenceStatus.loading;
+    final isLoading = modelLoader.isLoading || modelLoader.valueOrNull == InferenceStatus.loading;
 
-    if (isLoading || downloadState.status == DownloadStatus.completed) {
+    if (isLoading || status == ScreenStatus.completed) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (downloadState.status == DownloadStatus.error) {
-      return _button('Retry Download', onRetry, Colors.red.shade700);
+    if (status == ScreenStatus.error) {
+      return _button('Retry Download', onStart, Colors.red.shade700);
     }
 
-    if (downloadStarted && downloadState.status == DownloadStatus.downloading) {
-      return _button('Pause Download', onPause, Colors.orange.shade800);
-    }
-
-    if (downloadState.status == DownloadStatus.paused) {
-      return _button('Resume Download', onStart, Colors.deepPurple);
+    if (status == ScreenStatus.downloading) {
+      return _button('Downloading...', () {}, Colors.deepPurple.withValues(alpha: 0.5));
     }
 
     return _button('Download Model (~2 GB)', onStart, Colors.deepPurple);

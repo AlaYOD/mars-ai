@@ -129,17 +129,24 @@ Providers:
 - `inferenceServiceProvider` — singleton `InferenceService`. Calls `service.dispose()` when the provider is destroyed (app shutdown), which releases native memory.
 - `ModelLoaderNotifier` (`AsyncNotifier`) — manages the load sequence. Widgets watch `modelLoaderProvider` to know the engine state. `AsyncValue.guard()` wraps the load so errors surface cleanly in the UI without crashing.
 
+#### `lib/core/services/model_manager.dart`
+**Responsibility:** The primary download manager for the LiteRT model file.
+
+Key decisions:
+- Directly downloads the model from HuggingFace (`gemma-4-E2B-it.litertlm`).
+- **Temporary file strategy:** Downloads as `.tmp` first, then renames to the final `.litertlm` file upon success. This strictly prevents the app from trying to load a corrupted or half-downloaded model if the internet cuts out.
+- Provides a simple callback-based progress tracker (`0.0` to `1.0`).
+
 #### `lib/features/setup/download_screen.dart`
 **Responsibility:** The one-time first-launch screen.
 
 UI flow:
 1. User sees idle screen with "Download Model (~2 GB)" button.
-2. Tap → `ModelDownloadService.download()` stream starts. Screen shows live progress bar + byte counter + percentage.
-3. If WiFi drops → tap "Pause" → `CancelToken` cancels the stream, partial file stays on disk.
-4. Tap "Resume" → stream restarts with `Range: bytes=X-` header, picks up from where it stopped.
-5. `DownloadStatus.completed` → `modelLoaderProvider.notifier.loadModel()` is called automatically.
+2. Tap → `ModelManager.downloadModel()` starts. Screen shows live progress bar + percentage updated via `setState`.
+3. If WiFi drops → error state triggers, showing an error message and a "Retry" button.
+4. Download finishes successfully → `.tmp` is converted to the actual file.
+5. `modelLoaderProvider.notifier.loadModel()` is called automatically.
 6. Engine loads → `InferenceStatus.ready` → `Navigator.pushReplacementNamed('/home')`.
-7. Error state shows the error message + "Retry" button.
 
 #### `lib/main.dart` — updated
 Added `_StartupRouter` which checks `modelDownloadedProvider` on cold start:
@@ -159,8 +166,9 @@ lib/
 │   │   ├── download_provider.dart                 ← Step 1
 │   │   └── inference_provider.dart                ← Engine lifecycle provider
 │   └── services/
-│       ├── model_storage_service.dart             ← Step 1
-│       ├── model_download_service.dart            ← Step 1
+│       ├── model_storage_service.dart             ← Path sync
+│       ├── model_download_service.dart            ← Legacy stream logic
+│       ├── model_manager.dart                     ← Safe tmp download manager
 │       └── inference_service.dart                 ← LiteRT bridge
 └── features/
     ├── setup/
