@@ -42,6 +42,9 @@ dependencies:
   # Access to app-private storage directory for the model file
   path_provider: ^2.1.5
 
+  # Official Google LiteRT-LM bridge — loads .litert.lm files and runs inference on-device
+  flutter_litert_lm: ^0.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
