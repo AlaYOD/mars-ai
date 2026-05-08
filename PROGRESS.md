@@ -12,7 +12,7 @@
 | 1 | Environment setup (packages + storage + download foundation) | ✅ Done |
 | 2 | LLM Bridge + Download Screen UI | ✅ Done |
 | 3 | Agent architecture (4 isolated chat agents) | ✅ Done |
-| 4 | Chat UI (message bubbles, input field, per-agent screens) | ⬜ Next |
+| 4 | Chat UI (message bubbles, input field, per-agent screens) | ✅ Done |
 
 ---
 
@@ -272,11 +272,82 @@ lib/
 
 ---
 
-## Step 4 — Chat UI ⬜ (Next)
+## Step 4 — Chat UI ✅
 
-**What will be built:**
-- `ChatScreen` — one screen used by all 4 agents, parameterised by `AgentType`.
-- Message list: user bubbles (right, purple), AI bubbles (left, dark card).
-- Streaming bubble — while `status == generating`, shows the `streamingToken` text growing live in a bubble with a blinking cursor.
-- Input bar — text field + send button, disabled while generating.
-- AppBar with agent name, color accent, and a reset button to clear that agent's history.
+**Goal:** A fully wired chat screen — real messages from the AI engine, live token streaming, and correct isolation between agents.
+
+---
+
+### 4.1 — File rewritten
+
+#### `lib/features/agents/agent_chat_screen.dart`
+Replaced the mock `setState`-based screen with a fully Riverpod-wired `ConsumerStatefulWidget`.
+
+**Wiring:**
+- Watches `chatProvider(widget.type)` — every state update (new token, status change, error) rebuilds only the relevant part of the UI.
+- `ref.listen(chatProvider(...))` triggers `_scrollToBottom()` on every state change — the list always follows new content.
+- `ref.read(chatProvider(...).notifier).sendMessage(text)` sends to `AgentChatNotifier`, which calls `AgentEngine.send()` → `InferenceService.streamResponse()` → native LiteRT.
+- `ref.read(chatProvider(...).notifier).reset()` calls `AgentEngine.resetAgent()` which disposes only that agent's `LiteLmConversation` — the other 3 agents keep their history.
+
+**Widgets built:**
+
+| Widget | Responsibility |
+|---|---|
+| `_MessageBubble` | Renders a completed message. User = right-aligned, accent-colored border. AI = left-aligned, dark card. Corner radii follow chat convention (sharp corner on the "tail" side). |
+| `_StreamingBubble` | Shown while `status == generating`. If `streamingToken` is empty (first token not yet arrived), shows `_TypingDots`. Once tokens arrive, shows growing text with a blinking `▌` cursor driven by an `AnimationController`. |
+| `_TypingDots` | Three dots that pulse in sequence using a single `AnimationController` with phase-offset opacity per dot. |
+| `_SendButton` | `ValueListenableBuilder` on the `TextEditingController` — button is dark and inactive when field is empty, lights up with agent color when text is present. While generating: shows a `CircularProgressIndicator` instead. |
+| `_EmptyState` | Shown when `messages` is empty — agent icon, name, subtitle, and a "How can I help?" prompt bubble. |
+| `_ErrorBanner` | Red banner above the input bar when `status == error`. Shows the error message. Disappears when the next message is sent. |
+| AppBar | Shows agent icon + name + live status text ("Thinking…" vs "Online"). Reset button opens a confirmation dialog before calling `notifier.reset()`. |
+
+**Also fixed:** `download_screen.dart` was missing an import for `InferenceStatus` — added `inference_service.dart` import, resolving 5 pre-existing errors.
+
+---
+
+### 4.2 — Full data flow end-to-end
+
+```
+User types → _sendMessage()
+  → chatProvider(type).notifier.sendMessage(text)
+    → AgentEngine.send(type, text)          ← context switcher injects system prompt
+      → InferenceService.streamResponse()   ← LiteRT native call
+        → token arrives → streamingToken grows → _StreamingBubble updates live
+    → stream ends → messages list updated → _StreamingBubble replaced by _MessageBubble
+```
+
+---
+
+### 4.3 — Folder structure (final)
+
+```
+lib/
+├── main.dart                                      ← Startup routing + nav
+├── core/
+│   ├── providers/
+│   │   ├── download_provider.dart
+│   │   ├── inference_provider.dart
+│   │   └── profile_provider.dart
+│   └── services/
+│       ├── model_storage_service.dart
+│       ├── model_download_service.dart
+│       ├── model_manager.dart
+│       └── inference_service.dart
+└── features/
+    ├── setup/
+    │   ├── splash_screen.dart
+    │   ├── download_screen.dart
+    │   └── profile_setup_screen.dart
+    ├── home/
+    │   ├── home_screen.dart
+    │   └── main_layout.dart               ← Bottom nav (Home / History / Settings)
+    ├── agents/
+    │   ├── agent_config.dart
+    │   ├── agent_engine.dart
+    │   ├── agent_providers.dart
+    │   └── agent_chat_screen.dart         ← ✅ Fully wired chat UI
+    ├── history/
+    │   └── history_screen.dart
+    └── settings/
+        └── settings_screen.dart
+```

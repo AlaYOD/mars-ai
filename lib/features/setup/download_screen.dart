@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/inference_provider.dart';
+import '../../core/services/inference_service.dart';
 import '../../core/services/model_manager.dart';
 
 class DownloadScreen extends ConsumerStatefulWidget {
