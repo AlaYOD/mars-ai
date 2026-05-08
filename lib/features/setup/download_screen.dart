@@ -113,7 +113,7 @@ class _Header extends StatelessWidget {
       subtitle = 'Initializing the AI engine…';
     } else if (status == DownloadStatus.downloading) {
       title = 'Downloading AI Model';
-      subtitle = 'Gemma 4 E2B — ~2 GB\nKeep the app open for faster download.';
+      subtitle = 'Please connect to Wi-Fi. Downloading your smart assistant to work offline.';
     } else if (status == DownloadStatus.error) {
       title = 'Download Failed';
       subtitle = 'Check your connection and try again.';

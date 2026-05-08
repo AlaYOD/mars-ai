@@ -3,7 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers/download_provider.dart';
 import 'core/providers/inference_provider.dart';
 import 'core/services/inference_service.dart';
+import 'features/agents/agent_config.dart';
 import 'features/setup/download_screen.dart';
+import 'features/setup/splash_screen.dart';
+import 'features/setup/profile_setup_screen.dart';
+import 'core/providers/profile_provider.dart';
+import 'features/home/main_layout.dart';
+import 'features/agents/agent_chat_screen.dart';
 
 void main() {
   runApp(
@@ -30,7 +36,10 @@ class MarsApp extends StatelessWidget {
       ),
       home: const _StartupRouter(),
       routes: {
-        '/home': (_) => const _PlaceholderHome(),
+        '/home': (_) => const MainLayout(),
+        '/chat': (ctx) => AgentChatScreen(
+              type: ModalRoute.of(ctx)!.settings.arguments as AgentType,
+            ),
       },
     );
   }
@@ -45,14 +54,25 @@ class _StartupRouter extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileState = ref.watch(profileNotifierProvider);
     final modelDownloaded = ref.watch(modelDownloadedProvider);
 
-    return modelDownloaded.when(
-      loading: () => const _SplashScreen(),
-      error: (e, st) => const DownloadScreen(),
-      data: (isDownloaded) {
-        if (!isDownloaded) return const DownloadScreen();
-        return const _ModelLoaderGate();
+    return profileState.when(
+      loading: () => const SplashScreen(),
+      error: (e, st) => _ErrorScreen(message: e.toString()),
+      data: (profile) {
+        if (profile == null) {
+          return const ProfileSetupScreen();
+        }
+        
+        return modelDownloaded.when(
+          loading: () => const SplashScreen(),
+          error: (e, st) => const DownloadScreen(),
+          data: (isDownloaded) {
+            if (!isDownloaded) return const DownloadScreen();
+            return const _ModelLoaderGate();
+          },
+        );
       },
     );
   }
@@ -76,45 +96,24 @@ class _ModelLoaderGate extends ConsumerWidget {
     });
 
     return loaderState.when(
-      loading: () => const _SplashScreen(message: 'Loading AI engine…'),
+      loading: () => const SplashScreen(message: 'Loading AI engine…'),
       error: (e, _) => _ErrorScreen(message: e.toString()),
       data: (status) {
         if (status == InferenceStatus.ready) {
-          return const _PlaceholderHome();
+          return const MainLayout();
         }
         if (status == InferenceStatus.loading) {
-          return const _SplashScreen(message: 'Loading AI engine…');
+          return const SplashScreen(message: 'Loading AI engine…');
         }
         if (status == InferenceStatus.error) {
           return const _ErrorScreen(message: 'Failed to load model.');
         }
-        return const _SplashScreen();
+        return const SplashScreen();
       },
     );
   }
 }
 
-class _SplashScreen extends StatelessWidget {
-  final String message;
-  const _SplashScreen({this.message = 'Starting Mars…'});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            Text(message, style: const TextStyle(color: Colors.white54, fontSize: 15)),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _ErrorScreen extends StatelessWidget {
   final String message;
@@ -138,20 +137,3 @@ class _ErrorScreen extends StatelessWidget {
   }
 }
 
-// Placeholder — replaced in Step 4 with the real agent home screen.
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF0D0D0D),
-      body: Center(
-        child: Text(
-          'Mars — AI engine ready',
-          style: TextStyle(color: Colors.white70, fontSize: 18),
-        ),
-      ),
-    );
-  }
-}

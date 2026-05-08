@@ -11,8 +11,8 @@
 |---|------|--------|
 | 1 | Environment setup (packages + storage + download foundation) | ✅ Done |
 | 2 | LLM Bridge + Download Screen UI | ✅ Done |
-| 3 | Agent architecture (4 isolated chat agents) | ⬜ Next |
-| 4 | Chat UI (message bubbles, input field, per-agent screens) | ⬜ Pending |
+| 3 | Agent architecture (4 isolated chat agents) | ✅ Done |
+| 4 | Chat UI (message bubbles, input field, per-agent screens) | ⬜ Next |
 
 ---
 
@@ -170,20 +170,105 @@ lib/
 
 ---
 
-## Step 3 — Agent Architecture ⬜ (Next)
+## Step 3 — Agent Architecture ✅
 
-**What will be built:**
-- An `AgentType` enum with 4 values (e.g. `psychological`, `social`, `linguistic`, `coaching`).
-- An `AgentConfig` class — holds the name, description, and **system prompt** for each agent. The system prompt is what makes the psychological agent different from the social one; it's the personality injected before every conversation.
-- A `chatProvider(AgentType)` family provider — each agent type gets its own `LiteLmConversation` instance. The psychological agent's conversation history is completely isolated from the social agent's.
-- A home screen with 4 agent cards.
+**Goal:** Create a central `AgentEngine` that injects the correct persona before every query, with fully isolated conversation state per agent.
 
 ---
 
-## Step 4 — Chat UI ⬜
+### 3.1 — Files created
+
+#### `lib/features/agents/agent_config.dart`
+**Responsibility:** Single source of truth for all agent identities.
+
+- `AgentType` enum — 4 values: `psychology`, `social`, `language`, `biological`.
+- `AgentConfig` — holds: name, subtitle, icon, accent color, and system prompt.
+- `kAgents` — a `const Map<AgentType, AgentConfig>` with all 4 agents defined. Adding a 5th agent in the future = one new map entry. No other file changes.
+
+System prompts:
+| Agent | Prompt focus |
+|---|---|
+| Psychology | Grounded empathy, grounding techniques, no diagnoses |
+| Social | Cultural norms without judging native culture, icebreakers |
+| Language | Phonetics, simple sentences, confidence-building phrases |
+| Biological | Non-medical routines, sleep hygiene, stress-reduction habits |
+
+#### `lib/features/agents/agent_engine.dart`
+**Responsibility:** The context switcher — owns one `LiteLmConversation` per agent.
+
+Key decisions:
+- Holds a `Map<AgentType, LiteLmConversation>` — conversations are created lazily (first time each agent is opened). An agent that is never opened never allocates a conversation.
+- Holds a `Map<AgentType, List<ChatMessage>>` — the Dart-side history mirror. The UI reads this; `LiteLmConversation` holds the native-side history.
+- `send(type, message)` returns a `Stream<String>` of token deltas. It appends both turns to the Dart history only after the stream completes — the AI message is saved as a whole, not token by token.
+- `resetAgent(type)` disposes only that agent's conversation and clears its history. The other 3 agents are untouched.
+- Switching between agents is instant — no re-loading. The conversation for agent A is kept alive in memory while agent B is active.
+
+#### `lib/features/agents/agent_providers.dart`
+**Responsibility:** Riverpod wiring for chat state, one notifier per agent.
+
+- `agentEngineProvider` — singleton `AgentEngine`, disposed on app shutdown.
+- `AgentChatState` — holds: `messages`, `status` (idle/generating/error), `streamingToken` (the partial AI response building up live).
+- `AgentChatNotifier` (`FamilyNotifier`) — handles `sendMessage` and `reset`. During generation, `streamingToken` updates on every token so the UI can show a live typing effect. When the stream ends, `streamingToken` is cleared and the full message is moved into `messages`.
+- `chatProvider` — `NotifierProviderFamily<AgentChatNotifier, AgentChatState, AgentType>`. Calling `chatProvider(AgentType.psychology)` and `chatProvider(AgentType.social)` gives two completely independent state machines. They never share data.
+
+#### `lib/features/home/home_screen.dart`
+**Responsibility:** The main screen users see after setup.
+
+- 2×2 grid of `_AgentCard` widgets, one per agent.
+- Each card shows the agent's icon (in a colored bubble), name, and subtitle.
+- Tapping navigates to `/chat` with the `AgentType` passed as route arguments.
+
+#### `lib/main.dart` — updated
+- Replaced `_PlaceholderHome` with `HomeScreen`.
+- Added `/chat` route that reads `AgentType` from route arguments and shows a placeholder (replaced in Step 4).
+
+---
+
+### 3.2 — Data flow for a single message
+
+```
+User types → AgentChatNotifier.sendMessage(text)
+  → AgentEngine.send(type, text)
+    → ensureConversationReady(type)   ← lazy-creates LiteLmConversation if needed
+    → inference.streamResponse(conversation, text)
+      → LiteLmConversation.sendMessageStream(text)  ← native LiteRT call
+        → token stream → AgentChatNotifier updates streamingToken on each token
+  → stream ends → full message appended to messages list
+```
+
+---
+
+### 3.3 — Folder structure after Step 3
+
+```
+lib/
+├── main.dart
+├── core/
+│   ├── providers/
+│   │   ├── download_provider.dart
+│   │   └── inference_provider.dart
+│   └── services/
+│       ├── model_storage_service.dart
+│       ├── model_download_service.dart
+│       └── inference_service.dart
+└── features/
+    ├── setup/
+    │   └── download_screen.dart
+    ├── agents/
+    │   ├── agent_config.dart        ← AgentType enum + system prompts
+    │   ├── agent_engine.dart        ← context switcher
+    │   └── agent_providers.dart     ← Riverpod family providers
+    └── home/
+        └── home_screen.dart         ← 4 agent cards grid
+```
+
+---
+
+## Step 4 — Chat UI ⬜ (Next)
 
 **What will be built:**
-- A shared `ChatScreen` widget parameterised by `AgentType`.
-- Message bubbles (user right, AI left).
-- Text input + send button.
-- Streaming "typing" indicator while the model generates (tokens appear word by word).
+- `ChatScreen` — one screen used by all 4 agents, parameterised by `AgentType`.
+- Message list: user bubbles (right, purple), AI bubbles (left, dark card).
+- Streaming bubble — while `status == generating`, shows the `streamingToken` text growing live in a bubble with a blinking cursor.
+- Input bar — text field + send button, disabled while generating.
+- AppBar with agent name, color accent, and a reset button to clear that agent's history.
