@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'agent_config.dart';
 import 'agent_providers.dart';
+import '../../core/providers/locale_provider.dart';
 import '../../core/services/inference_service.dart';
 
 class AgentChatScreen extends ConsumerStatefulWidget {
@@ -38,26 +39,29 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
   }
 
   void _confirmReset() {
+    final l10n = ref.read(localizationProvider);
+    final agentName = l10n.translate('agent_${widget.type.name}_name');
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('Reset conversation?', style: TextStyle(color: Colors.white)),
+        title: Text(l10n.translate('chat_reset_title'), style: const TextStyle(color: Colors.white)),
         content: Text(
-          'All messages with the ${_config.name} agent will be cleared.',
+          '${l10n.translate('chat_reset_confirm')} ($agentName)',
           style: const TextStyle(color: Colors.white54),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            child: Text(l10n.translate('chat_cancel'), style: const TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               ref.read(chatProvider(widget.type).notifier).reset();
             },
-            child: Text('Reset', style: TextStyle(color: _config.color)),
+            child: Text(l10n.translate('chat_reset'), style: TextStyle(color: _config.color)),
           ),
         ],
       ),
@@ -74,25 +78,31 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.type));
+    final l10n = ref.watch(localizationProvider);
 
     // Scroll down whenever messages or streaming token changes.
     ref.listen(chatProvider(widget.type), (prev, next) => _scrollToBottom());
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
-      appBar: _buildAppBar(chatState),
-      body: Column(
-        children: [
-          Expanded(child: _buildMessageList(chatState)),
-          if (chatState.status == ChatStatus.error)
-            _ErrorBanner(message: chatState.errorMessage ?? 'Something went wrong.'),
-          _buildInputBar(chatState),
-        ],
+      appBar: _buildAppBar(chatState, l10n),
+      body: Directionality(
+        textDirection: l10n.textDirection,
+        child: Column(
+          children: [
+            Expanded(child: _buildMessageList(chatState)),
+            if (chatState.status == ChatStatus.error)
+              _ErrorBanner(message: chatState.errorMessage ?? 'Something went wrong.'),
+            _buildInputBar(chatState, l10n),
+          ],
+        ),
       ),
     );
   }
 
-  AppBar _buildAppBar(AgentChatState chatState) {
+  AppBar _buildAppBar(AgentChatState chatState, AppLocalizations l10n) {
+    final agentName = l10n.translate('agent_${widget.type.name}_name');
+
     return AppBar(
       backgroundColor: const Color(0xFF0D0D0D),
       elevation: 0,
@@ -116,11 +126,13 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _config.name,
+                agentName,
                 style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
               ),
               Text(
-                chatState.status == ChatStatus.generating ? 'Thinking…' : 'Online',
+                chatState.status == ChatStatus.generating 
+                    ? l10n.translate('chat_thinking') 
+                    : l10n.translate('chat_online'),
                 style: TextStyle(
                   color: chatState.status == ChatStatus.generating
                       ? _config.color
@@ -135,7 +147,7 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
       actions: [
         IconButton(
           icon: Icon(Icons.refresh, color: Colors.white.withValues(alpha: 0.5), size: 20),
-          tooltip: 'Reset conversation',
+          tooltip: l10n.translate('chat_reset_title'),
           onPressed: _confirmReset,
         ),
         const SizedBox(width: 4),
@@ -177,8 +189,9 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
     );
   }
 
-  Widget _buildInputBar(AgentChatState chatState) {
+  Widget _buildInputBar(AgentChatState chatState, AppLocalizations l10n) {
     final isGenerating = chatState.status == ChatStatus.generating;
+    final agentName = l10n.translate('agent_${widget.type.name}_name');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -207,7 +220,9 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
                   textInputAction: TextInputAction.newline,
                   style: const TextStyle(color: Colors.white, fontSize: 15),
                   decoration: InputDecoration(
-                    hintText: isGenerating ? 'Waiting for response…' : 'Message ${_config.name}…',
+                    hintText: isGenerating 
+                        ? l10n.translate('chat_thinking') 
+                        : '${l10n.translate('chat_type_msg')} ($agentName)',
                     hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 15),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -458,12 +473,16 @@ class _SendButton extends StatelessWidget {
 
 // ── Empty state shown before any messages ────────────────────────────────────
 
-class _EmptyState extends StatelessWidget {
+class _EmptyState extends ConsumerWidget {
   final AgentConfig config;
   const _EmptyState({required this.config});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationProvider);
+    final agentName = l10n.translate('agent_${config.type.name}_name');
+    final agentSub = l10n.translate('agent_${config.type.name}_sub');
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -479,13 +498,13 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            config.name,
+            agentName,
             style: const TextStyle(
                 color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           Text(
-            config.subtitle,
+            agentSub,
             style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 14),
           ),
           const SizedBox(height: 24),
@@ -497,7 +516,7 @@ class _EmptyState extends StatelessWidget {
               border: Border.all(color: config.color.withValues(alpha: 0.2)),
             ),
             child: Text(
-              'How can I help you today?',
+              l10n.translate('chat_empty_prompt'),
               style: TextStyle(color: config.color, fontSize: 13),
             ),
           ),

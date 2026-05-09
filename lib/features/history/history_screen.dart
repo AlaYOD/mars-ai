@@ -1,37 +1,69 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers/locale_provider.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends ConsumerWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('History & Bookmarks', style: TextStyle(color: Colors.white)),
+        title: Text(l10n.translate('history_title'), style: const TextStyle(color: Colors.white)),
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildSectionTitle('Bookmarks'),
-          _buildListItem(Icons.bookmark, 'Job Interview Tips (Psychology)', 'Saved yesterday', Colors.blue),
-          _buildListItem(Icons.bookmark, 'Grocery Shopping Phrases', 'Saved 3 days ago', Colors.green),
-          const SizedBox(height: 24),
-          _buildSectionTitle('Recent Conversations'),
-          _buildListItem(Icons.chat_bubble_outline, 'Visa Application Help', 'Social Agent • Today', Colors.orange),
-          _buildListItem(Icons.chat_bubble_outline, 'Local Cultural Etiquette', 'Social Agent • Yesterday', Colors.orange),
-          _buildListItem(Icons.chat_bubble_outline, 'Healthcare System Info', 'Biological Agent • Last week', Colors.redAccent),
-        ],
+      body: Directionality(
+        textDirection: l10n.textDirection,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _buildSectionTitle(l10n.translate('history_bookmarks')),
+            _buildListItem(
+              Icons.bookmark,
+              l10n.translate('history_mock_bookmark_1'),
+              l10n.translate('history_mock_bookmark_1_sub'),
+              Colors.blue,
+            ),
+            _buildListItem(
+              Icons.bookmark,
+              l10n.translate('history_mock_bookmark_2'),
+              l10n.translate('history_mock_bookmark_2_sub'),
+              Colors.green,
+            ),
+            const SizedBox(height: 24),
+            _buildSectionTitle(l10n.translate('history_conversations')),
+            _buildListItem(
+              Icons.chat_bubble_outline,
+              l10n.translate('history_mock_chat_1'),
+              l10n.translate('history_mock_chat_1_sub'),
+              Colors.orange,
+            ),
+            _buildListItem(
+              Icons.chat_bubble_outline,
+              l10n.translate('history_mock_chat_2'),
+              l10n.translate('history_mock_chat_2_sub'),
+              Colors.orange,
+            ),
+            _buildListItem(
+              Icons.chat_bubble_outline,
+              l10n.translate('history_mock_chat_3'),
+              l10n.translate('history_mock_chat_3_sub'),
+              Colors.redAccent,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16, left: 8),
+      padding: const EdgeInsets.only(bottom: 16, left: 8, right: 8),
       child: Text(
         title,
         style: const TextStyle(
@@ -57,7 +89,7 @@ class HistoryScreen extends StatelessWidget {
         ),
         title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
         subtitle: Text(subtitle, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13)),
-        trailing: Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.3)),
+        trailing: const Icon(Icons.chevron_right, color: Colors.white24),
         onTap: () {},
       ),
     );

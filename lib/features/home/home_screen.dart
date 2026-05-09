@@ -1,48 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers/locale_provider.dart';
 import '../agents/agent_config.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Mars',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+      body: Directionality(
+        textDirection: l10n.textDirection,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.translate('home_title'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Your offline AI companion for migration',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.45),
-                  fontSize: 14,
+                const SizedBox(height: 4),
+                Text(
+                  l10n.translate('home_subtitle'),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 40),
-              Expanded(
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  children: AgentType.values.map((type) {
-                    return _AgentCard(config: kAgents[type]!);
-                  }).toList(),
+                const SizedBox(height: 40),
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    children: AgentType.values.map((type) {
+                      return _AgentCard(config: kAgents[type]!);
+                    }).toList(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -50,12 +57,16 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _AgentCard extends StatelessWidget {
+class _AgentCard extends ConsumerWidget {
   final AgentConfig config;
   const _AgentCard({required this.config});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationProvider);
+    final nameKey = 'agent_${config.type.name}_name';
+    final subKey = 'agent_${config.type.name}_sub';
+
     return GestureDetector(
       onTap: () => Navigator.of(context).pushNamed(
         '/chat',
@@ -85,7 +96,7 @@ class _AgentCard extends StatelessWidget {
             ),
             const Spacer(),
             Text(
-              config.name,
+              l10n.translate(nameKey),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -94,7 +105,7 @@ class _AgentCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              config.subtitle,
+              l10n.translate(subKey),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.45),
                 fontSize: 12,

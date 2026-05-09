@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/providers/download_provider.dart';
 import 'core/providers/inference_provider.dart';
+import 'core/providers/locale_provider.dart';
+import 'core/providers/accessibility_provider.dart';
 import 'core/services/inference_service.dart';
 import 'features/agents/agent_config.dart';
 import 'features/setup/download_screen.dart';
@@ -19,21 +22,29 @@ void main() {
   );
 }
 
-class MarsApp extends StatelessWidget {
+class MarsApp extends ConsumerWidget {
   const MarsApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider);
+    final accessibility = ref.watch(accessibilityProvider);
+
     return MaterialApp(
       title: 'Mars',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: accessibility.getThemeData(),
+      locale: locale,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', ''),
+        Locale('ar', ''),
+        Locale('fr', ''),
+      ],
       home: const _StartupRouter(),
       routes: {
         '/home': (_) => const MainLayout(),

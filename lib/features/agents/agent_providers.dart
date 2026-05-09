@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/inference_provider.dart';
+import '../../core/providers/locale_provider.dart';
 import '../../core/services/inference_service.dart';
 import 'agent_config.dart';
 import 'agent_engine.dart';
@@ -57,6 +58,8 @@ class AgentChatNotifier extends FamilyNotifier<AgentChatState, AgentType> {
     if (text.trim().isEmpty) return;
 
     final engine = ref.read(agentEngineProvider);
+    final l10n = ref.read(localizationProvider);
+    final systemPrompt = l10n.translate('agent_${arg.name}_prompt');
 
     state = state.copyWith(
       status: ChatStatus.generating,
@@ -67,7 +70,7 @@ class AgentChatNotifier extends FamilyNotifier<AgentChatState, AgentType> {
     final buffer = StringBuffer();
 
     try {
-      await for (final token in engine.send(arg, text)) {
+      await for (final token in engine.send(arg, text, systemPrompt)) {
         buffer.write(token);
         state = state.copyWith(streamingToken: buffer.toString());
       }

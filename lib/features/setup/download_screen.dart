@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/inference_provider.dart';
+import '../../core/providers/locale_provider.dart';
 import '../../core/services/inference_service.dart';
 import '../../core/services/model_manager.dart';
 
@@ -55,6 +56,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
   @override
   Widget build(BuildContext context) {
     final modelLoader = ref.watch(modelLoaderProvider);
+    final l10n = ref.watch(localizationProvider);
 
     // Once the engine is ready, hand off to the main app.
     if (modelLoader.valueOrNull == InferenceStatus.ready) {
@@ -67,24 +69,27 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Spacer(),
-              _Header(status: _status, modelLoader: modelLoader),
-              const SizedBox(height: 48),
-              _ProgressSection(status: _status, progress: _progress, errorMessage: _errorMessage),
-              const SizedBox(height: 32),
-              _ActionButton(
-                status: _status,
-                modelLoader: modelLoader,
-                onStart: _startDownload,
-              ),
-              const Spacer(flex: 2),
-            ],
+      body: Directionality(
+        textDirection: l10n.textDirection,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Spacer(),
+                _Header(status: _status, modelLoader: modelLoader),
+                const SizedBox(height: 48),
+                _ProgressSection(status: _status, progress: _progress, errorMessage: _errorMessage),
+                const SizedBox(height: 32),
+                _ActionButton(
+                  status: _status,
+                  modelLoader: modelLoader,
+                  onStart: _startDownload,
+                ),
+                const Spacer(flex: 2),
+              ],
+            ),
           ),
         ),
       ),
@@ -92,32 +97,33 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   final ScreenStatus status;
   final AsyncValue<InferenceStatus> modelLoader;
 
   const _Header({required this.status, required this.modelLoader});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationProvider);
     final String title;
     final String subtitle;
 
     if (modelLoader.isLoading || modelLoader.valueOrNull == InferenceStatus.loading) {
-      title = 'Preparing AI Engine';
-      subtitle = 'Loading model into memory…';
+      title = l10n.translate('download_title_prep_engine');
+      subtitle = l10n.translate('download_subtitle_prep_engine');
     } else if (status == ScreenStatus.completed) {
-      title = 'Download Complete';
-      subtitle = 'Initializing the AI engine…';
+      title = l10n.translate('download_title_complete');
+      subtitle = l10n.translate('download_subtitle_complete');
     } else if (status == ScreenStatus.downloading) {
-      title = 'Downloading AI Model';
-      subtitle = 'Please connect to Wi-Fi. Downloading your smart assistant to work offline.';
+      title = l10n.translate('download_title_active');
+      subtitle = l10n.translate('download_subtitle_active');
     } else if (status == ScreenStatus.error) {
-      title = 'Download Failed';
-      subtitle = 'Check your connection and try again.';
+      title = l10n.translate('download_title_error');
+      subtitle = l10n.translate('download_subtitle_error');
     } else {
-      title = 'One-time Setup';
-      subtitle = 'Mars needs to download the AI model (~2 GB).\nThis happens once. The model runs fully offline after this.';
+      title = l10n.translate('download_title_setup');
+      subtitle = l10n.translate('download_subtitle_setup');
     }
 
     return Column(
@@ -208,7 +214,7 @@ class _ProgressSection extends StatelessWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends ConsumerWidget {
   final ScreenStatus status;
   final AsyncValue<InferenceStatus> modelLoader;
   final VoidCallback onStart;
@@ -220,7 +226,8 @@ class _ActionButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationProvider);
     final isLoading = modelLoader.isLoading || modelLoader.valueOrNull == InferenceStatus.loading;
 
     if (isLoading || status == ScreenStatus.completed) {
@@ -228,14 +235,14 @@ class _ActionButton extends StatelessWidget {
     }
 
     if (status == ScreenStatus.error) {
-      return _button('Retry Download', onStart, Colors.red.shade700);
+      return _button(l10n.translate('download_btn_retry'), onStart, Colors.red.shade700);
     }
 
     if (status == ScreenStatus.downloading) {
-      return _button('Downloading...', () {}, Colors.deepPurple.withValues(alpha: 0.5));
+      return _button(l10n.translate('download_btn_active'), () {}, Colors.deepPurple.withValues(alpha: 0.5));
     }
 
-    return _button('Download Model (~2 GB)', onStart, Colors.deepPurple);
+    return _button(l10n.translate('download_btn_start'), onStart, Colors.deepPurple);
   }
 
   Widget _button(String label, VoidCallback onTap, Color color) {

@@ -23,19 +23,18 @@ class AgentEngine {
 
   /// Opens (or re-uses) the conversation for the given agent.
   /// First call creates a new LiteLmConversation with the agent's system prompt.
-  Future<void> ensureConversationReady(AgentType type) async {
+  Future<void> ensureConversationReady(AgentType type, String systemPrompt) async {
     if (_conversations.containsKey(type)) return;
 
-    final config = kAgents[type]!;
     _conversations[type] = await _inference.createConversation(
-      systemPrompt: config.systemPrompt,
+      systemPrompt: systemPrompt,
     );
   }
 
   /// Sends a user message to the specified agent and streams back the response.
   /// Appends both turns to the Dart-side history as the stream completes.
-  Stream<String> send(AgentType type, String userMessage) async* {
-    await ensureConversationReady(type);
+  Stream<String> send(AgentType type, String userMessage, String systemPrompt) async* {
+    await ensureConversationReady(type, systemPrompt);
 
     _histories[type]!.add(ChatMessage(text: userMessage, isUser: true));
 
