@@ -3,10 +3,12 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  objectbox_flutter_libs
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   jni
+  tflite_flutter
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)
