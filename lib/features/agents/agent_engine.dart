@@ -43,9 +43,13 @@ class AgentEngine {
   }
 
   Stream<String> send(AgentType type, String userMessage, String systemPrompt) async* {
-    // Dispose previous — LiteLmConversation cannot be reused after completion.
-    await _conversations[type]?.dispose();
-    _conversations.remove(type);
+    // The native engine only allows ONE active session at a time.
+    // Dispose ALL open conversations before creating a new one — otherwise
+    // switching agents throws "a session already exists".
+    for (final key in List.of(_conversations.keys)) {
+      await _conversations[key]?.dispose();
+      _conversations.remove(key);
+    }
 
     _histories[type]!.add(ChatMessage(text: userMessage, isUser: true));
 
