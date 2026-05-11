@@ -15,23 +15,6 @@ class UserProfile {
   });
 }
 
-final profileProvider = FutureProvider<UserProfile?>((ref) async {
-  final prefs = await SharedPreferences.getInstance();
-  final nativeCountry = prefs.getString('nativeCountry');
-  final hostCountry = prefs.getString('hostCountry');
-  final language = prefs.getString('language');
-  final status = prefs.getString('status');
-
-  if (nativeCountry != null && hostCountry != null && language != null && status != null) {
-    return UserProfile(
-      nativeCountry: nativeCountry,
-      hostCountry: hostCountry,
-      language: language,
-      status: status,
-    );
-  }
-  return null;
-});
 
 final profileNotifierProvider = StateNotifierProvider<ProfileNotifier, AsyncValue<UserProfile?>>((ref) {
   return ProfileNotifier(ref);

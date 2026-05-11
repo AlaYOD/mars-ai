@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers/download_provider.dart';
 import '../../core/providers/inference_provider.dart';
 import '../../core/providers/locale_provider.dart';
 import '../../core/services/inference_service.dart';
-import '../../core/services/model_manager.dart';
+import '../../core/services/model_download_service.dart';
+
+// Hugging Face URL for the Gemma model.
+const _kModelUrl =
+    'https://huggingface.co/PSIteam/gemma-4-E2B-it/resolve/main/gemma-4-E2B-it.litertlm?download=true';
 
 class DownloadScreen extends ConsumerStatefulWidget {
   const DownloadScreen({super.key});
@@ -12,50 +17,39 @@ class DownloadScreen extends ConsumerStatefulWidget {
   ConsumerState<DownloadScreen> createState() => _DownloadScreenState();
 }
 
-enum ScreenStatus { idle, downloading, completed, error }
-
 class _DownloadScreenState extends ConsumerState<DownloadScreen> {
-  final ModelManager _modelManager = ModelManager();
-  
-  ScreenStatus _status = ScreenStatus.idle;
-  double _progress = 0.0;
-  String? _errorMessage;
+  void _startDownload() {
+    final downloadService = ref.read(modelDownloadServiceProvider);
+    final downloadState = ref.read(downloadStateProvider.notifier);
 
-  void _startDownload() async {
-    if (_status == ScreenStatus.downloading) return;
-    
-    setState(() {
-      _status = ScreenStatus.downloading;
-      _errorMessage = null;
-      _progress = 0.0;
-    });
-
-    try {
-      await _modelManager.downloadModel((progress) {
-        setState(() {
-          _progress = progress;
-        });
-      });
-      
-      setState(() {
-        _status = ScreenStatus.completed;
-        _progress = 1.0;
-      });
-      
-      // Model is on disk — now load it into the inference engine.
-      ref.read(modelLoaderProvider.notifier).loadModel();
-      
-    } catch (e) {
-      setState(() {
-        _status = ScreenStatus.error;
-        _errorMessage = e.toString();
-      });
+    if (ref.read(downloadStateProvider).status == DownloadStatus.downloading) {
+      return;
     }
+
+    downloadState.state = const DownloadState(status: DownloadStatus.downloading);
+
+    downloadService.download(_kModelUrl).listen(
+      (state) {
+        ref.read(downloadStateProvider.notifier).state = state;
+
+        if (state.status == DownloadStatus.completed) {
+          // Model is on disk — now load it into the inference engine.
+          ref.read(modelLoaderProvider.notifier).loadModel();
+        }
+      },
+      onError: (e) {
+        ref.read(downloadStateProvider.notifier).state = DownloadState(
+          status: DownloadStatus.error,
+          errorMessage: e.toString(),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final modelLoader = ref.watch(modelLoaderProvider);
+    final download = ref.watch(downloadStateProvider);
     final l10n = ref.watch(localizationProvider);
 
     // Once the engine is ready, hand off to the main app.
@@ -78,12 +72,12 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Spacer(),
-                _Header(status: _status, modelLoader: modelLoader),
+                _Header(download: download, modelLoader: modelLoader),
                 const SizedBox(height: 48),
-                _ProgressSection(status: _status, progress: _progress, errorMessage: _errorMessage),
+                _ProgressSection(download: download),
                 const SizedBox(height: 32),
                 _ActionButton(
-                  status: _status,
+                  download: download,
                   modelLoader: modelLoader,
                   onStart: _startDownload,
                 ),
@@ -98,10 +92,10 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
 }
 
 class _Header extends ConsumerWidget {
-  final ScreenStatus status;
+  final DownloadState download;
   final AsyncValue<InferenceStatus> modelLoader;
 
-  const _Header({required this.status, required this.modelLoader});
+  const _Header({required this.download, required this.modelLoader});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -112,13 +106,13 @@ class _Header extends ConsumerWidget {
     if (modelLoader.isLoading || modelLoader.valueOrNull == InferenceStatus.loading) {
       title = l10n.translate('download_title_prep_engine');
       subtitle = l10n.translate('download_subtitle_prep_engine');
-    } else if (status == ScreenStatus.completed) {
+    } else if (download.status == DownloadStatus.completed) {
       title = l10n.translate('download_title_complete');
       subtitle = l10n.translate('download_subtitle_complete');
-    } else if (status == ScreenStatus.downloading) {
+    } else if (download.status == DownloadStatus.downloading) {
       title = l10n.translate('download_title_active');
       subtitle = l10n.translate('download_subtitle_active');
-    } else if (status == ScreenStatus.error) {
+    } else if (download.status == DownloadStatus.error) {
       title = l10n.translate('download_title_error');
       subtitle = l10n.translate('download_subtitle_error');
     } else {
@@ -153,21 +147,13 @@ class _Header extends ConsumerWidget {
 }
 
 class _ProgressSection extends StatelessWidget {
-  final ScreenStatus status;
-  final double progress;
-  final String? errorMessage;
+  final DownloadState download;
 
-  const _ProgressSection({
-    required this.status,
-    required this.progress,
-    this.errorMessage,
-  });
+  const _ProgressSection({required this.download});
 
   @override
   Widget build(BuildContext context) {
-    final isActive = status == ScreenStatus.downloading || status == ScreenStatus.completed;
-
-    if (!isActive && status == ScreenStatus.idle) {
+    if (download.status == DownloadStatus.idle) {
       return const SizedBox.shrink();
     }
 
@@ -177,11 +163,11 @@ class _ProgressSection extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: progress > 0 ? progress : null,
+            value: download.progress > 0 ? download.progress : null,
             minHeight: 6,
             backgroundColor: Colors.white12,
             valueColor: AlwaysStoppedAnimation<Color>(
-              status == ScreenStatus.error
+              download.status == DownloadStatus.error
                   ? Colors.red.shade400
                   : Colors.deepPurple.shade300,
             ),
@@ -191,9 +177,9 @@ class _ProgressSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            if (progress > 0)
+            if (download.progress > 0)
               Text(
-                '${(progress * 100).toStringAsFixed(1)}%',
+                '${(download.progress * 100).toStringAsFixed(1)}%',
                 style: TextStyle(
                   color: Colors.deepPurple.shade300,
                   fontSize: 13,
@@ -202,10 +188,10 @@ class _ProgressSection extends StatelessWidget {
               ),
           ],
         ),
-        if (errorMessage != null) ...[
+        if (download.errorMessage != null) ...[
           const SizedBox(height: 8),
           Text(
-            errorMessage!,
+            download.errorMessage!,
             style: TextStyle(color: Colors.red.shade400, fontSize: 13),
           ),
         ],
@@ -215,12 +201,12 @@ class _ProgressSection extends StatelessWidget {
 }
 
 class _ActionButton extends ConsumerWidget {
-  final ScreenStatus status;
+  final DownloadState download;
   final AsyncValue<InferenceStatus> modelLoader;
   final VoidCallback onStart;
 
   const _ActionButton({
-    required this.status,
+    required this.download,
     required this.modelLoader,
     required this.onStart,
   });
@@ -228,18 +214,23 @@ class _ActionButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = ref.watch(localizationProvider);
-    final isLoading = modelLoader.isLoading || modelLoader.valueOrNull == InferenceStatus.loading;
+    final isLoading =
+        modelLoader.isLoading || modelLoader.valueOrNull == InferenceStatus.loading;
 
-    if (isLoading || status == ScreenStatus.completed) {
+    if (isLoading || download.status == DownloadStatus.completed) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (status == ScreenStatus.error) {
+    if (download.status == DownloadStatus.error) {
       return _button(l10n.translate('download_btn_retry'), onStart, Colors.red.shade700);
     }
 
-    if (status == ScreenStatus.downloading) {
-      return _button(l10n.translate('download_btn_active'), () {}, Colors.deepPurple.withValues(alpha: 0.5));
+    if (download.status == DownloadStatus.downloading) {
+      return _button(
+        l10n.translate('download_btn_active'),
+        () {},
+        Colors.deepPurple.withValues(alpha: 0.5),
+      );
     }
 
     return _button(l10n.translate('download_btn_start'), onStart, Colors.deepPurple);
