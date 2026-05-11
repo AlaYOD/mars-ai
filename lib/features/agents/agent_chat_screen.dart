@@ -4,6 +4,7 @@ import 'agent_config.dart';
 import 'agent_providers.dart';
 import '../../core/providers/locale_provider.dart';
 import '../../core/providers/speech_provider.dart';
+import '../../core/providers/tts_provider.dart';
 import '../../core/services/inference_service.dart';
 
 class AgentChatScreen extends ConsumerStatefulWidget {
@@ -336,15 +337,18 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
 
 // ── Individual message bubble ─────────────────────────────────────────────────
 
-class _MessageBubble extends StatelessWidget {
+class _MessageBubble extends ConsumerWidget {
   final ChatMessage message;
   final AgentConfig config;
 
   const _MessageBubble({required this.message, required this.config});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isUser = message.isUser;
+    final speakingId = ref.watch(ttsProvider);
+    final isSpeaking = speakingId == message.id;
+    final locale = ref.watch(localeProvider);
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -372,9 +376,36 @@ class _MessageBubble extends StatelessWidget {
                 : Colors.white.withValues(alpha: 0.06),
           ),
         ),
-        child: Text(
-          message.text,
-          style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.45),
+        child: Column(
+          crossAxisAlignment:
+              isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Text(
+              message.text,
+              style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.45),
+            ),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: () {
+                ref.read(ttsProvider.notifier).speak(
+                  messageId: message.id,
+                  text: message.text,
+                  languageCode: locale.languageCode,
+                );
+              },
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  isSpeaking ? Icons.stop_circle_outlined : Icons.volume_up_rounded,
+                  key: ValueKey(isSpeaking),
+                  size: 16,
+                  color: isSpeaking
+                      ? config.color
+                      : Colors.white.withValues(alpha: 0.35),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

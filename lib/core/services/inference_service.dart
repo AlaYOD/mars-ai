@@ -5,10 +5,15 @@ import 'model_storage_service.dart';
 enum InferenceStatus { unloaded, loading, ready, generating, error }
 
 class ChatMessage {
+  final String id;
   final String text;
   final bool isUser;
 
-  const ChatMessage({required this.text, required this.isUser});
+  ChatMessage({
+    String? id,
+    required this.text,
+    required this.isUser,
+  }) : id = id ?? '${DateTime.now().microsecondsSinceEpoch}_${text.hashCode}';
 
   LiteLmMessage toLiteLm() =>
       isUser ? LiteLmMessage.user(text) : LiteLmMessage.model(text);

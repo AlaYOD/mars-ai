@@ -50,6 +50,7 @@ dependencies:
 
   # Speech-to-text — uses device native engine, supports 100+ languages, works offline
   speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:
