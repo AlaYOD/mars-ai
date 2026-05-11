@@ -48,6 +48,9 @@ dependencies:
   flutter_litert_lm: ^0.3.0
   shared_preferences: ^2.5.5
 
+  # Speech-to-text — uses device native engine, supports 100+ languages, works offline
+  speech_to_text: ^7.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

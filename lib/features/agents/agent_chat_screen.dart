@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'agent_config.dart';
 import 'agent_providers.dart';
 import '../../core/providers/locale_provider.dart';
+import '../../core/providers/speech_provider.dart';
 import '../../core/services/inference_service.dart';
 
 class AgentChatScreen extends ConsumerStatefulWidget {
@@ -18,6 +19,46 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   AgentConfig get _config => kAgents[widget.type]!;
+
+  // Maps app locale code to a BCP-47 locale ID accepted by the device STT engine.
+  // Falls back to 'en_US' so recognition never breaks.
+  String get _sttLocaleId {
+    final code = ref.read(localeProvider).languageCode;
+    const map = {
+      'en': 'en_US',
+      'ar': 'ar_SA',
+      'fr': 'fr_FR',
+      'es': 'es_ES',
+      'de': 'de_DE',
+      'zh': 'zh_CN',
+      'ja': 'ja_JP',
+      'ko': 'ko_KR',
+      'hi': 'hi_IN',
+      'pt': 'pt_BR',
+      'ru': 'ru_RU',
+      'tr': 'tr_TR',
+      'it': 'it_IT',
+      'nl': 'nl_NL',
+    };
+    return map[code] ?? '${code}_${code.toUpperCase()}';
+  }
+
+  void _toggleSpeech() {
+    final speech = ref.read(speechProvider);
+    if (speech.status == SpeechStatus.listening) {
+      ref.read(speechProvider.notifier).stopListening();
+    } else {
+      ref.read(speechProvider.notifier).startListening(
+        localeId: _sttLocaleId,
+        onResult: (text) {
+          _inputController.text = text;
+          _inputController.selection = TextSelection.fromPosition(
+            TextPosition(offset: text.length),
+          );
+        },
+      );
+    }
+  }
 
   void _sendMessage() {
     final text = _inputController.text.trim();
@@ -192,6 +233,19 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
   Widget _buildInputBar(AgentChatState chatState, AppLocalizations l10n) {
     final isGenerating = chatState.status == ChatStatus.generating;
     final agentName = l10n.translate('agent_${widget.type.name}_name');
+    final speechState = ref.watch(speechProvider);
+    final isListening = speechState.status == SpeechStatus.listening;
+    final sttUnavailable = speechState.status == SpeechStatus.notAvailable;
+
+    // While listening, show the partial transcript live in the text field
+    if (isListening && speechState.partialText.isNotEmpty) {
+      _inputController.value = TextEditingValue(
+        text: speechState.partialText,
+        selection: TextSelection.fromPosition(
+          TextPosition(offset: speechState.partialText.length),
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -201,41 +255,77 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(maxHeight: 120),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: TextField(
-                  controller: _inputController,
-                  enabled: !isGenerating,
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  textInputAction: TextInputAction.newline,
-                  style: const TextStyle(color: Colors.white, fontSize: 15),
-                  decoration: InputDecoration(
-                    hintText: isGenerating 
-                        ? l10n.translate('chat_thinking') 
-                        : '${l10n.translate('chat_type_msg')} ($agentName)',
-                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 15),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  ),
+            if (isListening)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _MicPulse(color: _config.color),
+                    const SizedBox(width: 8),
+                    Text(
+                      l10n.translate('chat_listening'),
+                      style: TextStyle(color: _config.color, fontSize: 12),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            _SendButton(
-              isGenerating: isGenerating,
-              color: _config.color,
-              controller: _inputController,
-              onSend: _sendMessage,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (!sttUnavailable)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, bottom: 0),
+                    child: _MicButton(
+                      isListening: isListening,
+                      isGenerating: isGenerating,
+                      color: _config.color,
+                      onTap: isGenerating ? null : _toggleSpeech,
+                    ),
+                  ),
+                Expanded(
+                  child: Container(
+                    constraints: const BoxConstraints(maxHeight: 120),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isListening
+                            ? _config.color.withValues(alpha: 0.5)
+                            : Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _inputController,
+                      enabled: !isGenerating && !isListening,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
+                      style: const TextStyle(color: Colors.white, fontSize: 15),
+                      decoration: InputDecoration(
+                        hintText: isGenerating
+                            ? l10n.translate('chat_thinking')
+                            : isListening
+                                ? l10n.translate('chat_listening')
+                                : '${l10n.translate('chat_type_msg')} ($agentName)',
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 15),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _SendButton(
+                  isGenerating: isGenerating,
+                  color: _config.color,
+                  controller: _inputController,
+                  onSend: _sendMessage,
+                ),
+              ],
             ),
           ],
         ),
@@ -543,6 +633,98 @@ class _ErrorBanner extends StatelessWidget {
         style: const TextStyle(color: Colors.white70, fontSize: 13),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+// ── Microphone button ─────────────────────────────────────────────────────────
+
+class _MicButton extends StatelessWidget {
+  final bool isListening;
+  final bool isGenerating;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const _MicButton({
+    required this.isListening,
+    required this.isGenerating,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: isListening
+              ? color.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.06),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isListening ? color : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Icon(
+          isListening ? Icons.mic : Icons.mic_none_rounded,
+          color: isListening ? color : Colors.white54,
+          size: 20,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Pulsing dot shown while mic is active ─────────────────────────────────────
+
+class _MicPulse extends StatefulWidget {
+  final Color color;
+  const _MicPulse({required this.color});
+
+  @override
+  State<_MicPulse> createState() => _MicPulseState();
+}
+
+class _MicPulseState extends State<_MicPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..repeat(reverse: true);
+    _scale = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(
+          color: widget.color,
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }
