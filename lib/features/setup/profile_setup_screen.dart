@@ -234,7 +234,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                   const SizedBox(height: 16),
                   
                   DropdownButtonFormField<String>(
-                    value: _selectedLanguage,
+                    initialValue: _selectedLanguage,
                     decoration: InputDecoration(
                       labelText: l10n.translate('setup_native_lang'),
                       labelStyle: TextStyle(color: isLgt ? Colors.black45 : Colors.white.withValues(alpha: 0.5)),
