@@ -48,9 +48,20 @@ dependencies:
   flutter_litert_lm: ^0.3.0
   shared_preferences: ^2.5.5
 
-  # Speech-to-text — uses device native engine, supports 100+ languages, works offline
-  speech_to_text: ^7.0.0
+  # Offline speech-to-text via Vosk — 100% on-device, no internet required
+  vosk_flutter: ^0.3.0
+
+  # Runtime permission requests (microphone) — required by vosk_flutter
+  permission_handler: ^11.3.1
+
+  # Unzip Vosk model archives extracted from assets or downloaded zip files
+  archive: ^3.6.1
+
+  # Text-to-speech — works offline with device TTS engine (no cloud call)
   flutter_tts: ^4.2.5
+
+dependency_overrides:
+  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_test:
@@ -80,6 +91,10 @@ flutter:
   # Register assets
   assets:
     - assets/logo.png
+    # Vosk model zips (small ~50 MB each) bundled for offline STT.
+    # Each language pair has its own zip — only English is bundled by default;
+    # other languages are downloaded at runtime via VoskModelService.
+    - assets/models/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

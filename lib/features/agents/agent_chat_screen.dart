@@ -21,36 +21,16 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
 
   AgentConfig get _config => kAgents[widget.type]!;
 
-  // Maps app locale code to a BCP-47 locale ID accepted by the device STT engine.
-  // Falls back to 'en_US' so recognition never breaks.
-  String get _sttLocaleId {
-    final code = ref.read(localeProvider).languageCode;
-    const map = {
-      'en': 'en_US',
-      'ar': 'ar_SA',
-      'fr': 'fr_FR',
-      'es': 'es_ES',
-      'de': 'de_DE',
-      'zh': 'zh_CN',
-      'ja': 'ja_JP',
-      'ko': 'ko_KR',
-      'hi': 'hi_IN',
-      'pt': 'pt_BR',
-      'ru': 'ru_RU',
-      'tr': 'tr_TR',
-      'it': 'it_IT',
-      'nl': 'nl_NL',
-    };
-    return map[code] ?? '${code}_${code.toUpperCase()}';
-  }
+  // Language code passed directly to Vosk (e.g. 'en', 'ar', 'fr').
+  String get _langCode => ref.read(localeProvider).languageCode;
 
   void _toggleSpeech() {
     final speech = ref.read(speechProvider);
     if (speech.status == SpeechStatus.listening) {
       ref.read(speechProvider.notifier).stopListening();
-    } else {
+    } else if (speech.status != SpeechStatus.loadingModel) {
       ref.read(speechProvider.notifier).startListening(
-        localeId: _sttLocaleId,
+        langCode: _langCode,
         onResult: (text) {
           _inputController.text = text;
           _inputController.selection = TextSelection.fromPosition(
@@ -236,6 +216,7 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
     final agentName = l10n.translate('agent_${widget.type.name}_name');
     final speechState = ref.watch(speechProvider);
     final isListening = speechState.status == SpeechStatus.listening;
+    final isLoadingModel = speechState.status == SpeechStatus.loadingModel;
     final sttUnavailable = speechState.status == SpeechStatus.notAvailable;
 
     // While listening, show the partial transcript live in the text field
@@ -280,12 +261,17 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
                 if (!sttUnavailable)
                   Padding(
                     padding: const EdgeInsets.only(right: 8, bottom: 0),
-                    child: _MicButton(
-                      isListening: isListening,
-                      isGenerating: isGenerating,
-                      color: _config.color,
-                      onTap: isGenerating ? null : _toggleSpeech,
-                    ),
+                    child: isLoadingModel
+                        ? _ModelLoadingButton(
+                            progress: speechState.modelLoadProgress,
+                            color: _config.color,
+                          )
+                        : _MicButton(
+                            isListening: isListening,
+                            isGenerating: isGenerating,
+                            color: _config.color,
+                            onTap: isGenerating ? null : _toggleSpeech,
+                          ),
                   ),
                 Expanded(
                   child: Container(
@@ -707,6 +693,43 @@ class _MicButton extends StatelessWidget {
           color: isListening ? color : Colors.white54,
           size: 20,
         ),
+      ),
+    );
+  }
+}
+
+// ── Download progress button shown while Vosk model is loading ────────────────
+
+class _ModelLoadingButton extends StatelessWidget {
+  final double progress;
+  final Color color;
+
+  const _ModelLoadingButton({required this.progress, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        shape: BoxShape.circle,
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              value: progress > 0 ? progress : null,
+              strokeWidth: 2,
+              backgroundColor: color.withValues(alpha: 0.2),
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+          Icon(Icons.download_rounded, color: color, size: 12),
+        ],
       ),
     );
   }
