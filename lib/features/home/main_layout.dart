@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/locale_provider.dart';
 import 'home_screen.dart';
-import '../history/history_screen.dart';
+import '../team/team_screen.dart';
 import '../settings/settings_screen.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
@@ -17,7 +17,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
 
   final List<Widget> _screens = const [
     HomeScreen(),
-    HistoryScreen(),
+    TeamScreen(),
     SettingsScreen(),
   ];
 
@@ -54,9 +54,9 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
                 label: l10n.translate('nav_home'),
               ),
               BottomNavigationBarItem(
-                icon: const Icon(Icons.bookmark_outline),
-                activeIcon: const Icon(Icons.bookmark),
-                label: l10n.translate('nav_history'),
+                icon: const Icon(Icons.people_outline),
+                activeIcon: const Icon(Icons.people),
+                label: l10n.translate('nav_team'),
               ),
               BottomNavigationBarItem(
                 icon: const Icon(Icons.settings_outlined),

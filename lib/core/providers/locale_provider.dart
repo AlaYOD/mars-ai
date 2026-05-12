@@ -75,6 +75,7 @@ class AppLocalizations {
       // Navigation tabs
       'nav_home': 'Home',
       'nav_history': 'History',
+      'nav_team': 'Team',
       'nav_settings': 'Settings',
 
       // Home Screen
@@ -235,6 +236,7 @@ class AppLocalizations {
       // Navigation tabs
       'nav_home': 'الرئيسية',
       'nav_history': 'السجل',
+      'nav_team': 'الفريق',
       'nav_settings': 'الإعدادات',
 
       // Home Screen
@@ -390,6 +392,7 @@ class AppLocalizations {
       // Navigation tabs
       'nav_home': 'Accueil',
       'nav_history': 'Historique',
+      'nav_team': 'Équipe',
       'nav_settings': 'Paramètres',
 
       // Home Screen
