@@ -1,0 +1,42 @@
+name: Build iOS Flutter App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      # 1. تحميل الكود
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. تثبيت Flutter
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+
+      # 3. تثبيت dependencies
+      - name: Get dependencies
+        run: flutter pub get
+
+      # 4. Build iOS بدون signing
+      - name: Build iOS
+        run: flutter build ios --release --no-codesign
+
+      # 5. ضغط التطبيق
+      - name: Zip app
+        run: |
+          cd build/ios/iphoneos
+          zip -r Runner.zip Runner.app
+
+      # 6. رفع النتيجة
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app
+          path: build/ios/iphoneos/Runner.zip
