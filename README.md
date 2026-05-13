@@ -29,6 +29,7 @@
 - [Our Insight](#-our-insight)
 - [The Solution](#-the-solution)
 - [The Adaptation Framework](#-the-adaptation-framework)
+- [User Journey & App State Workflow](#-user-journey--app-state-workflow)
 - [How Gemma 4 Is Used](#-how-gemma-4-is-used)
 - [The 4 Specialized Agents & Their Prompts](#-the-4-specialized-agents--their-prompts)
 - [Technical Architecture](#-technical-architecture)
@@ -137,6 +138,148 @@ A **Gemma 4-powered adaptation system** combining:
 | 5 | **Growth** | Integration, thriving, and helping others | Create |
 
 Every agent prompt instructs Gemma 4 to **detect the user's current phase** and calibrate its response accordingly — this is the core of MARS's adaptive intelligence.
+
+---
+
+## 🔄 User Journey & App State Workflow
+
+MARS operates as a deterministic, offline-first state machine. The user journey begins with a localized initialization process, moves through an isolated multi-agent shell, and flows into an on-device text-and-speech inference loop.
+
+### 📊 Application State Machine Diagram
+
+The diagram below details how the application manages internal states (such as verifying local storage, executing range-resumable downloads, resolving GPU/CPU compiler targets, switching agent contexts, and running speech processing loops).
+
+<p align="center">
+  <img src="assets/mars_detailed_workflow.png" alt="MARS Application State Machine Diagram" width="850" />
+</p>
+
+```mermaid
+stateDiagram-v2
+    [*] --> ColdStart : User Launches App
+    
+    state ColdStart {
+        [*] --> CheckProfile
+        CheckProfile --> ProfileSetupState : Profile Incomplete\n(First Launch)
+        CheckProfile --> CheckModelFile : Profile Found\n(Subsequent Launch)
+        
+        state ProfileSetupState {
+            [*] --> CollectMetadata : Input name, native/host countries,\napp locale, and immigration status
+            CollectMetadata --> SaveProfile : Submit
+            SaveProfile --> CheckModelFile : Commit to SharedPreferences\n(profileNotifierProvider)
+        }
+    }
+    
+    state CheckModelFile {
+        [*] --> DetectStoragePath : getApplicationSupportDirectory()
+        DetectStoragePath --> DownloadState : gemma-4-E2B-it.litertlm\nIs Missing or Corrupted
+        DetectStoragePath --> EngineLoadState : Model Present\n(Validated File Size)
+    }
+    
+    state DownloadState {
+        [*] --> IdleDownload : Display Welcome &\nDownload Prompt (~2 GB)
+        IdleDownload --> Downloading : User taps "Download"
+        Downloading --> Paused : Connection Drop or\nUser taps "Pause"
+        Paused --> Downloading : User taps "Resume"\n(Range: bytes=X-)
+        Downloading --> DownloadCompleted : Download Reaches 100%
+        DownloadCompleted --> EngineLoadState : Atomic Rename (.tmp -> .litertlm)
+    }
+    
+    state EngineLoadState {
+        [*] --> LoadingEngine : Read local model file path
+        LoadingEngine --> GpuCompile : Try LiteLmBackend.gpu
+        GpuCompile --> ReadyShell : Success (Accelerated)
+        GpuCompile --> CpuCompile : Fallback (OpenGL/Metal Issue)
+        CpuCompile --> ReadyShell : Success (CPU-bound)
+    }
+    
+    state ReadyShell {
+        [*] --> MainLayout : Bottom Navigation Core
+        
+        state MainLayout {
+            Dashboard : 2x2 specialized agent selector
+            History : Bookmarks & localized conversation archives
+            Settings : App locale, accessibility controls, model controls
+            
+            [*] --> Dashboard
+            Dashboard --> AgentChat : Select Agent
+            History --> AgentChat : Resume Conversation
+        }
+    }
+    
+    state AgentChat {
+        [*] --> InitConversation : Create isolated session\n(Lazy-created LiteLmConversation)
+        InitConversation --> IdleChat : Inject localized system prompts\n(Psychology, Social, Language, Biological)
+        
+        state InputLoop {
+            IdleChat --> TextInput : User Types Message
+            IdleChat --> SpeechInput : User Speaks\n(STT Voice Recording)
+            SpeechInput --> TextInput : Transcribe via Speech-to-Text
+            TextInput --> AwaitInference : Submit Message
+        }
+        
+        state InferenceLoop {
+            AwaitInference --> SlidingWindow : Process last 12k chars\n(Preserve user/assistant context)
+            SlidingWindow --> TokenStreaming : Submit to LiteRT Engine
+            TokenStreaming --> TokenStreaming : Stream word-by-word\n(Live Typewriter Animation)
+            TokenStreaming --> InferenceCompleted : Finish Stream\n(Status = Idle)
+        }
+        
+        InferenceCompleted --> SpeakOutput : Trigger Text-to-Speech\n(Automatic Audio Playback)
+        SpeakOutput --> IdleChat
+        
+        IdleChat --> ResetConversation : Tap "Reset" in Header
+        ResetConversation --> InitConversation : Wipes Chat History & disposes session
+    }
+    
+    ReadyShell --> [*] : App Terminated / Suspend
+```
+
+---
+
+### 🚶 Step-by-Step User Workflow Details
+
+To provide a professional guide for clinicians, developers, and field coordinators, the MARS user experience is broken down into five core phases:
+
+#### 1. Onboarding & Multi-Lingual Profile Customization
+*   **User Action**: The user launches the application for the first time. They are welcomed by the onboarding portal ([profile_setup_screen.dart](file:///c:/flutter/mars/lib/features/setup/profile_setup_screen.dart)).
+*   **Application Logic**:
+    *   The app checks the `profileNotifierProvider` to see if profile details exist in `SharedPreferences`.
+    *   Since it is a first launch, the user is presented with options to select their active language (English, Arabic, French) which dynamically switches the app's visual layout (including full Right-to-Left RTL alignments for Arabic).
+    *   The user inputs their name, native country, host country, and immigration status.
+    *   Upon clicking "Continue", the profile is persistent, and the state machine transitions to checking the local file system.
+
+#### 2. Resumable Model Acquisition & Storage Sandbox
+*   **User Action**: The user arrives at the [download_screen.dart](file:///c:/flutter/mars/lib/features/setup/download_screen.dart) and is prompted to initiate a one-time ~2 GB model download.
+*   **Application Logic**:
+    *   The [model_storage_service.dart](file:///c:/flutter/mars/lib/core/services/model_storage_service.dart) runs a check on the application support directory (`getApplicationSupportDirectory()`). If `gemma-4-E2B-it.litertlm` is absent or incomplete, the download sequence is prepared.
+    *   When the user taps "Download", the [model_manager.dart](file:///c:/flutter/mars/lib/core/services/model_manager.dart) executes a safe resumable download via `Dio` using **HTTP Range Headers** (`Range: bytes=X-`). 
+    *   The model downloads to a secure sandbox, preventing automatic cloud backups (iCloud/Google Drive) to preserve user storage limits.
+    *   If the user pauses the download or loses cellular connectivity, the system saves the download offset. Upon reconnection, it appends data seamlessly without restarting from 0%.
+    *   **Atomic Safety**: The data is streamed into a `.tmp` file. Only when the download verifies successfully at 100% is the file renamed to `.litertlm`, strictly preventing the engine from attempting to initialize a corrupt file.
+
+#### 3. Deep-Inference Initialization (Dual Backend Fallback)
+*   **User Action**: The download completes and the interface shows an "Initializing Engine..." spinner.
+*   **Application Logic**:
+    *   The [inference_service.dart](file:///c:/flutter/mars/lib/core/services/inference_service.dart) calls `LiteLmEngine.create` on the compiled binary.
+    *   It initiates the **GPU compilation pipeline** (`LiteLmBackend.gpu`) to harness the device’s hardware-accelerated shaders, writing pre-compiled binaries to `cacheDir` for subsequent load speeds up to 3× faster.
+    *   If the device does not support GPU acceleration (e.g., older handsets or incompatible drivers), the service intercepts the failure and automatically falls back to **CPU bound execution** (`LiteLmBackend.cpu`).
+    *   Once loaded, the engine is designated as `ready` and transitions the user to the Main Layout.
+
+#### 4. Isolated Multi-Agent Navigation (Lazy Allocation Shell)
+*   **User Action**: The user lands on the Home Dashboard and is presented with a 2×2 grid of specialized agents: Psychological Resilience, Cultural Integration, Language Tutor, and Daily Wellness.
+*   **Application Logic**:
+    *   The app loads the bottom navigation shell ([main_layout.dart](file:///c:/flutter/mars/lib/features/home/main_layout.dart)), exposing the Dashboard, History screen, and Settings page.
+    *   When the user taps an agent card, they open [agent_chat_screen.dart](file:///c:/flutter/mars/lib/features/setup/agent_chat_screen.dart).
+    *   **Context Isolation**: The [agent_engine.dart](file:///c:/flutter/mars/lib/features/agents/agent_engine.dart) lazy-allocates a native `LiteLmConversation` session exclusively for this agent type. The agent's full extended system prompt (e.g., 800-token clinical psychological instructions in the user's localized tongue) is injected directly into that session.
+    *   Since conversations are isolated by Riverpod `family` providers, switching between agents is instant. Opening the Language Agent has zero impact on the active history or system prompts of the Biological Agent.
+
+#### 5. On-Device Speech & Sliding History Loop
+*   **User Action**: The user records their voice or types an inquiry to ask their selected agent for guidance.
+*   **Application Logic**:
+    *   **Speech Input**: If the microphone button is used, the system triggers the offline speech-to-text service to record and transcribe vocals on-device without cloud dependencies.
+    *   **Sliding History Window**: Prior to passing the user's prompt to LiteRT, the engine reads the active agent's history and trims the buffer down to a strict **12,000-character budget** (preserving user-assistant pairs). This ensures the context fits safely within Gemma 4's ~8,192 token limit, avoiding overflow errors while maintaining a rolling context window.
+    *   **Token Streaming**: The engine streams tokens back word-by-word. The UI animates this using a custom typewriter blinking caret driven by a ticker animation.
+    *   **Voice Playback**: Upon completion of the text stream, the [tts_provider.dart](file:///c:/flutter/mars/lib/core/providers/tts_provider.dart) automatically converts the text back to high-quality localized speech (`flutter_tts`), speaking the advice aloud to aid non-literate users.
 
 ---
 
