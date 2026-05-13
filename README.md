@@ -62,22 +62,24 @@
 
 ## ❗ The Problem
 
-Migration is often treated as a logistical issue. In reality, it is a **multi-dimensional human transformation**. Migrants face six interconnected challenges:
+Migration is often treated as a logistical issue. In reality, it is a **multi-dimensional human transformation**. Migrants face four interconnected challenges:
 
 ```
-          ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-          │ PSYCHOLOGICAL│     │  BIOLOGICAL  │     │  CULTURAL   │
-          │ Identity loss│     │ Stress/sleep │     │ Unfamiliar  │
-          │ & anxiety    │     │ disruption   │     │ norms       │
-          └──────┬───────┘     └──────┬───────┘     └──────┬──────┘
-                 │                    │                    │
-                 └────────────────────┼────────────────────┘
-                                      │
-          ┌─────────────┐     ┌───────┴──────┐     ┌─────────────┐
-          │   LANGUAGE   │     │  RELIGIOUS   │     │  AWARENESS  │
-          │ Communication│     │ Adapting     │     │ Confusion & │
-          │ avoidance    │     │ beliefs      │     │ no guidance │
-          └──────────────┘     └──────────────┘     └─────────────┘
+          ┌─────────────┐     ┌─────────────┐
+          │PSYCHOLOGICAL│     │ BIOLOGICAL  │
+          │Identity loss│     │Stress/sleep │
+          │ & anxiety    │     │disruption   │
+          └──────┬──────┘     └──────┬──────┘
+                 │                   │
+                 └─────────┬─────────┘
+                           │
+                 ┌─────────┴─────────┐
+                 │                   │
+          ┌──────┴──────┐     ┌──────┴──────┐
+          │  CULTURAL   │     │  LANGUAGE   │
+          │ Unfamiliar  │     │Communication│
+          │ norms       │     │ avoidance   │
+          └─────────────┘     └─────────────┘
 ```
 
 **Existing solutions fail** because they are:
@@ -94,7 +96,7 @@ Migration is often treated as a logistical issue. In reality, it is a **multi-di
 
 > **Adaptation is not failure or resistance — it is a function of:**
 >
-> `Awareness × Emotional Load × Identity Stability`
+> `Understanding × Emotional Load × Identity Stability`
 >
 > **Therefore, adaptation can be learned, measured, and improved.**
 
@@ -106,7 +108,7 @@ A **Gemma 4-powered adaptation system** combining:
 
 | Component | Description |
 |:---|:---|
-| 🧬 **6-Domain Human Adaptation Model** | Psychological, Biological, Cultural, Language, Religious, Awareness |
+| 🧬 **4-Domain Human Adaptation Model** | Psychological, Biological, Cultural, Language |
 | 📈 **5-Phase Learning Progression** | Preparation → Detection → Containment → Recovery → Growth |
 | 🧠 **4 Domain-Specific AI Agents** | Each with a deep system prompt grounded in migration research |
 | 🌐 **Trilingual Interface** | English, Arabic (RTL), French — plus auto-language detection in responses |
@@ -116,7 +118,7 @@ A **Gemma 4-powered adaptation system** combining:
 
 ## 🧭 The Adaptation Framework
 
-### Six Domains
+### Four Domains
 
 | # | Domain | Focus Area |
 |:---:|:---|:---|
@@ -124,14 +126,12 @@ A **Gemma 4-powered adaptation system** combining:
 | 2 | **Biological** | Chronic stress, fatigue, sleep disruption |
 | 3 | **Cultural** | Unfamiliar norms, values, social expectations |
 | 4 | **Language** | Communication barriers, speaking avoidance |
-| 5 | **Religious** | Adapting beliefs and spiritual practices |
-| 6 | **Awareness** | Confusion, lack of structured guidance |
 
 ### Five Phases of Progression (MARS Framework)
 
 | Level | Phase | Focus | Bloom's Mapping |
 |:---:|:---|:---|:---|
-| 1 | **Preparation** | Awareness and readiness before or upon arrival | Remember / Understand |
+| 1 | **Preparation** | Preparedness and readiness before or upon arrival | Remember / Understand |
 | 2 | **Detection** | Identifying that something feels wrong | Analyze |
 | 3 | **Containment** | Managing acute distress in the moment | Apply |
 | 4 | **Recovery** | Rebuilding stability and confidence | Evaluate |
@@ -429,7 +429,7 @@ in the mental and emotional challenges of migration and displacement.
 Your domain is the PSYCHOLOGICAL dimension of adaptation.
 ALWAYS detect which of the 5 MARS phases the user is in and respond accordingly:
 
-• PREPARATION: User has not yet migrated or just arrived. Provide awareness
+• PREPARATION: User has not yet migrated or just arrived. Provide education
   of likely emotional challenges (culture shock, identity loss, grief),
   coping strategies to build resilience in advance, and realistic expectations.
 
@@ -510,7 +510,7 @@ ALWAYS detect which of the 5 MARS phases the user is in and respond accordingly:
 
 • PREPARATION: User is preparing to move. Explain host-country social norms,
   unwritten rules, communication styles (direct vs indirect), workplace culture,
-  religious/gender dynamics, and greetings. Help them avoid common cultural mistakes.
+  social/gender dynamics, and greetings. Help them avoid common cultural mistakes.
 
 • DETECTION: User feels something went wrong socially — they offended someone,
   felt excluded, misread a situation, or are confused by local behavior.
@@ -527,8 +527,7 @@ ALWAYS detect which of the 5 MARS phases the user is in and respond accordingly:
 • GROWTH: User has adapted and wants to bridge cultures. Help them become a
   cultural liaison, mentor newcomers, and celebrate their bicultural identity.
 
-Common real-world scenarios: workplace hierarchy misunderstandings, religious
-practice conflicts, gender role differences, neighbor disputes, making friends
+Common real-world scenarios: workplace hierarchy misunderstandings, gender role differences, neighbor disputes, making friends
 as an adult, navigating bureaucracy, handling discrimination, attending local
 social events, understanding humor and sarcasm.
 
@@ -1201,7 +1200,6 @@ Tested with **120 users** across multiple regions:
 
 ## 🗺️ Future Roadmap
 
-- [ ] **Religious & Awareness agents** — complete the full 6-domain framework
 - [ ] **5+ additional languages** — Turkish, Urdu, Pashto, Dari, Swahili
 - [ ] **Voice-first interface** — full TTS/STT flow for low-literacy users
 - [ ] **Conversation persistence** — SQLite-backed history across app restarts
