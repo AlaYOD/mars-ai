@@ -10,31 +10,35 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # 1. تحميل الكود
+      # 1. Checkout code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2. تثبيت Flutter
+      # 2. Setup Flutter (STABLE FIXED VERSION)
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.0'
 
-      # 3. تثبيت dependencies
+      # 3. Get dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # 4. Build iOS بدون signing
+      # 4. Analyze (optional but helps prevent errors early)
+      - name: Analyze project
+        run: flutter analyze || true
+
+      # 5. Build iOS (no signing)
       - name: Build iOS
         run: flutter build ios --release --no-codesign
 
-      # 5. ضغط التطبيق
+      # 6. Zip app
       - name: Zip app
         run: |
           cd build/ios/iphoneos
           zip -r Runner.zip Runner.app
 
-      # 6. رفع النتيجة
+      # 7. Upload artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
