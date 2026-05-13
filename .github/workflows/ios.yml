@@ -24,6 +24,24 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # 3.5. Cache LiteRT-LM iOS Frameworks
+      - name: Cache LiteRT-LM iOS Frameworks
+        id: cache-litert-frameworks
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache/hosted/pub.dev/flutter_litert_lm-0.3.0/ios/Frameworks
+          key: ${{ runner.os }}-litert-frameworks-0.3.0-v2
+
+      # 3.6. Build iOS Frameworks if cache miss
+      - name: Build LiteRT-LM iOS Frameworks
+        if: steps.cache-litert-frameworks.outputs.cache-hit != 'true'
+        run: |
+          command -v bazel >/dev/null 2>&1 || brew install bazelisk
+          command -v git-lfs >/dev/null 2>&1 || brew install git-lfs
+          git lfs install
+          cd $HOME/.pub-cache/hosted/pub.dev/flutter_litert_lm-0.3.0/
+          bash scripts/build_ios_frameworks.sh
+
       # 4. Analyze (optional but helps prevent errors early)
       - name: Analyze project
         run: flutter analyze || true
