@@ -46,7 +46,7 @@ dependencies:
 
   # Official Google LiteRT-LM bridge — loads .litert.lm files and runs inference on-device
   flutter_litert_lm: ^0.3.0
-  shared_preferences: ^2.5.5
+  shared_preferences: ^2.2.3
 
   # Offline speech-to-text via Vosk — 100% on-device, no internet required
   vosk_flutter: ^0.3.0
